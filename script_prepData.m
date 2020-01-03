@@ -100,4 +100,3 @@ for idx_subject = unique(indices_subject)
     h5create(h5fn_frames,GroupName,size(indices_frame_1_subject),'DataType','uint32');
     h5write(h5fn_frames,GroupName,uint32(indices_class(indices_frame_1_subject)));
 end
-

@@ -12,7 +12,7 @@ dataFolder = fullfile(homeFolder, 'Scratch/data/protocol/SPE_data_classes');
 ClassNames = {'1_skull'; '2_abdomen'; '3_heart'; '4_other'};
 ClassFolders = cellfun(@(x)fullfile(dataFolder,x),ClassNames,'UniformOutput',false);
 
-% go through all cases
+%% go through all raw data and obtain the frame_info
 case_ids = {};
 frame_info = {};
 frame_counters = zeros(length(ClassFolders),1);
@@ -65,7 +65,9 @@ end
 
 save(fullfile(normFolder,'frame_info'),'frame_info');
 
+
 %% now write into files
+
 roi_crop = [47,230,33,288]; % [ymin,ymax,xmin,xmax]
 frame_size = [roi_crop(4)-roi_crop(3)+1,roi_crop(2)-roi_crop(1)+1];
 indices_class = [frame_info(:).class_idx];
@@ -120,19 +122,20 @@ for idx_subject = (1:num_subjects)-1  % 0-based indexing
         h5write(h5fn_subjects,GroupName,img);
     end
     GroupName = sprintf('/subject%06d_class',idx_subject);
-    h5create(h5fn_frames,GroupName,size(indices_frame_1_subject),'DataType','uint32');
-    h5write(h5fn_frames,GroupName,uint32(indices_class(indices_frame_1_subject)));
+    h5create(h5fn_subjects,GroupName,size(indices_frame_1_subject),'DataType','uint32');
+    h5write(h5fn_subjects,GroupName,uint32(indices_class(indices_frame_1_subject)));
 end
 % extra info
 GroupName = '/num_frames_per_subject';
-h5create(h5fn_frames,GroupName,size(num_frames_per_subject),'DataType','uint32');
-h5write(h5fn_frames,GroupName,uint32(num_frames_per_subject));
+h5create(h5fn_subjects,GroupName,size(num_frames_per_subject),'DataType','uint32');
+h5write(h5fn_subjects,GroupName,uint32(num_frames_per_subject));
 GroupName = '/frame_size';
-h5create(h5fn_frames,GroupName,size(frame_size),'DataType','uint32');
-h5write(h5fn_frames,GroupName,uint32(frame_size));
+h5create(h5fn_subjects,GroupName,size(frame_size),'DataType','uint32');
+h5write(h5fn_subjects,GroupName,uint32(frame_size));
 GroupName = '/num_classes';
-h5create(h5fn_frames,GroupName,[1,1],'DataType','uint32');
-h5write(h5fn_frames,GroupName,uint32(num_classes));
+h5create(h5fn_subjects,GroupName,[1,1],'DataType','uint32');
+h5write(h5fn_subjects,GroupName,uint32(num_classes));
 GroupName = '/num_subjects';
-h5create(h5fn_frames,GroupName,[1,1],'DataType','uint32');
-h5write(h5fn_frames,GroupName,uint32(num_subjects));
+h5create(h5fn_subjects,GroupName,[1,1],'DataType','uint32');
+h5write(h5fn_subjects,GroupName,uint32(num_subjects));
+

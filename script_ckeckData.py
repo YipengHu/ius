@@ -3,12 +3,15 @@ import os
 import tensorflow as tf
 from matplotlib import pyplot as plt
 
+flag_wsl = True
 
-norm_folder = '/mnt/c/Users/yhu/Scratch/data/protocol/normalised'
+norm_folder = 'Scratch/data/protocol/normalised'
 if os.name == 'nt':
     home_dir = os.path.expanduser('~')
-else:
+elif os.name == 'posix':
     home_dir = os.environ['HOME']
+if flag_wsl: 
+    home_dir = os.path.join('/mnt/c/Users/yhu')  # WSL
 
 filename = os.path.join(home_dir, norm_folder, 'protocol_sweep_class_subjects.h5')
 
@@ -20,7 +23,8 @@ plt.figure()
 for iSbj in range(nSbj):
     for iFrm in range(nFrm):
         group_name = '/subject%06d_frame%08d' % (idx_subject[iSbj], idx_frame[iFrm])
-        frame = tf.keras.utils.HDF5Matrix(filename, group_name)
-        plt.subplot(nSbj, nFrm, iSbj*nFrm+iFrm+1)
-        plt.imshow(frame, cmap='gray')
+        frame = tf.transpose(tf.keras.utils.HDF5Matrix(filename, group_name))
+        axs = plt.subplot(nSbj, nFrm, iSbj*nFrm+iFrm+1)  
+        axs.imshow(frame, cmap='gray')
+        axs.axis('off')
 plt.show()

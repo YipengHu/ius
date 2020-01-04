@@ -1,7 +1,14 @@
 % script_prepData
-normFolder = fullfile(getenv('HOME'), 'Scratch/data/protocol/normalised');
+
+if ispc
+    homeFolder = getenv('USERPROFILE');
+elseif isunix
+    homeFolder = getenv('HOME');
+end
+
+normFolder = fullfile(homeFolder, 'Scratch/data/protocol/normalised');
 mkdir(normFolder);
-dataFolder = fullfile(getenv('HOME'), 'Scratch/data/protocol/SPE_data_classes');
+dataFolder = fullfile(homeFolder, 'Scratch/data/protocol/SPE_data_classes');
 ClassNames = {'1_skull'; '2_abdomen'; '3_heart'; '4_other'};
 ClassFolders = cellfun(@(x)fullfile(dataFolder,x),ClassNames,'UniformOutput',false);
 
@@ -60,8 +67,11 @@ save(fullfile(normFolder,'frame_info'),'frame_info');
 
 %% now write into files
 roi_crop = [47,230,33,288]; % [ymin,ymax,xmin,xmax]
+frame_size = [roi_crop(4)-roi_crop(3)+1,roi_crop(2)-roi_crop(1)+1];
 indices_class = [frame_info(:).class_idx];
+num_classes = length(unique(indices_class));
 indices_subject = [frame_info(:).case_idx];
+num_subjects = length(unique(indices_subject));
 
 % by frames
 h5fn_frames = fullfile(normFolder,'protocol_sweep_class_frames.h5');  delete(h5fn_frames);
@@ -81,12 +91,25 @@ h5write(h5fn_frames,GroupName,uint32(indices_class));
 GroupName = '/subject';
 h5create(h5fn_frames,GroupName,size(indices_subject),'DataType','uint32');
 h5write(h5fn_frames,GroupName,uint32(indices_subject));
+% extra info
+GroupName = '/frame_size';
+h5create(h5fn_frames,GroupName,size(frame_size),'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(frame_size));
+GroupName = '/num_classes';
+h5create(h5fn_frames,GroupName,[1,1],'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(num_classes));
+GroupName = '/num_subjects';
+h5create(h5fn_frames,GroupName,[1,1],'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(num_subjects));
+
 
 % by subject
 h5fn_subjects = fullfile(normFolder,'protocol_sweep_class_subjects.h5');  delete(h5fn_subjects);
-for idx_subject = unique(indices_subject)
+num_frames_per_subject = zeros(1,num_subjects,'uint32');
+for idx_subject = (1:num_subjects)-1  % 0-based indexing
     frame_subject = 0;
     indices_frame_1_subject = find(indices_subject==idx_subject);
+    num_frames_per_subject(idx_subject+1) = length(indices_frame_1_subject);
     for idx_frame_1 = indices_frame_1_subject
         filename = fullfile(dataFolder,frame_info(idx_frame_1).class_name,frame_info(idx_frame_1).filename);
         img = imread(filename);
@@ -100,3 +123,16 @@ for idx_subject = unique(indices_subject)
     h5create(h5fn_frames,GroupName,size(indices_frame_1_subject),'DataType','uint32');
     h5write(h5fn_frames,GroupName,uint32(indices_class(indices_frame_1_subject)));
 end
+% extra info
+GroupName = '/num_frames_per_subject';
+h5create(h5fn_frames,GroupName,size(num_frames_per_subject),'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(num_frames_per_subject));
+GroupName = '/frame_size';
+h5create(h5fn_frames,GroupName,size(frame_size),'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(frame_size));
+GroupName = '/num_classes';
+h5create(h5fn_frames,GroupName,[1,1],'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(num_classes));
+GroupName = '/num_subjects';
+h5create(h5fn_frames,GroupName,[1,1],'DataType','uint32');
+h5write(h5fn_frames,GroupName,uint32(num_subjects));

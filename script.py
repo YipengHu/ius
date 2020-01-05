@@ -1,10 +1,22 @@
 
 import tensorflow as tf
 import random
+import os
 # import numpy as np 
 
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-filename = '/mnt/c/Users/yhu/Scratch/data/protocol/normalised/protocol_sweep_class_subjects.h5'
+flag_wsl = True
+
+
+if flag_wsl: 
+    home_dir = os.path.join('/mnt/c/Users/yhu')  # WSL
+else:
+    if os.name == 'nt':
+        home_dir = os.path.expanduser('~')
+    elif os.name == 'posix':
+        home_dir = os.environ['HOME']
+filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_sweep_class_subjects.h5')
 
 frame_size = tf.keras.utils.HDF5Matrix(filename, '/frame_size').data.value
 frame_size = [frame_size[0][0],frame_size[1][0]]

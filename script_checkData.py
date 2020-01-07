@@ -8,12 +8,12 @@ flag_wsl = True
 nSbj = 6
 nFrm = 8
 
-if flag_wsl: 
-    home_dir = os.path.join('/mnt/c/Users/yhu')  # WSL
-else:
-    if os.name == 'nt':
-        home_dir = os.path.expanduser('~')
-    elif os.name == 'posix':
+if os.name == 'nt':
+    home_dir = os.path.expanduser('~')
+elif os.name == 'posix':
+    if os.uname()[2][-9:]=='Microsoft':
+        home_dir = os.path.join('/mnt/c/Users/',os.environ['WINDOWS_USER_NAME'])  # WSL user-provided
+    else:
         home_dir = os.environ['HOME']
 filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_sweep_class_subjects.h5')
 

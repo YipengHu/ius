@@ -2,19 +2,24 @@
 import tensorflow as tf
 import random
 import os
-# import numpy as np 
+# import numpy as np
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-flag_wsl = True
 
+idx_model = 0
 
-if flag_wsl: 
-    home_dir = os.path.join('/mnt/c/Users/yhu')  # WSL
-else:
-    if os.name == 'nt':
-        home_dir = os.path.expanduser('~')
-    elif os.name == 'posix':
+import sys
+parsed_input = sys.argv  # get idx at runtime
+if len(parsed_input) == 2:
+    idx_model = int(parsed_input[1])
+
+if os.name == 'nt':
+    home_dir = os.path.expanduser('~')
+elif os.name == 'posix':
+    if os.uname()[2][-9:]=='Microsoft':
+        home_dir = os.path.join('/mnt/c/Users/yhu')  # WSL
+    else:
         home_dir = os.environ['HOME']
 filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_sweep_class_subjects.h5')
 
@@ -23,45 +28,37 @@ frame_size = [frame_size[0][0],frame_size[1][0]]
 num_classes = tf.keras.utils.HDF5Matrix(filename, '/num_classes').data.value[0][0]
 
 # place holder for input image frames
-features_input = tf.keras.Input(shape=frame_size+[1])
-features = tf.keras.layers.Conv2D(32, 7, activation='relu')(features_input)
+if idx_model == 0:
+    model = tf.keras.applications.xception.Xception(
+        include_top=True,
+        weights=None,
+        input_shape=frame_size+[1],
+        classes=num_classes)
+    print('********** Xception **********')
+elif idx_model == 1:
+    model = tf.keras.applications.resnet.ResNet50V2(
+        include_top=True,
+        weights=None,
+        input_shape=frame_size+[1],
+        classes=num_classes)
+    print('********** ResNet50V2 **********')
+elif idx_model == 2:
+    model = tf.keras.applications.densenet.DenseNet201(
+        include_top=True,
+        weights=None,
+        input_shape=frame_size+[1],
+        classes=num_classes)
+    print('********** DenseNet201 **********')
+elif idx_model == 3:
+    model = tf.keras.applications.inception_v3.InceptionV3(
+        include_top=True,
+        weights=None,
+        input_shape=frame_size+[1],
+        classes=num_classes)
+    print('********** InceptionV3 **********')
 
-features = tf.keras.layers.MaxPool2D(3)(features)
-features_block_1 = tf.keras.layers.Conv2D(64, 3, activation='relu')(features)
-features = tf.keras.layers.Conv2D(64, 3, activation='relu', padding='same')(features_block_1)
-features = tf.keras.layers.Conv2D(64, 3, activation='relu', padding='same')(features)
-features_block_2 = tf.keras.layers.add([features, features_block_1])
-features = tf.keras.layers.Conv2D(64, 3, activation='relu', padding='same')(features_block_2)
-features = tf.keras.layers.Conv2D(64, 3, activation='relu', padding='same')(features)
-features = tf.keras.layers.add([features, features_block_2])
+# model.summary()
 
-features = tf.keras.layers.MaxPool2D(3)(features)
-features_block_3 = tf.keras.layers.Conv2D(128, 3, activation='relu')(features)
-features = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(features_block_3)
-features = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(features)
-features_block_4 = tf.keras.layers.add([features, features_block_3])
-features = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(features_block_4)
-features = tf.keras.layers.Conv2D(128, 3, activation='relu', padding='same')(features)
-features = tf.keras.layers.add([features, features_block_4])
-
-features = tf.keras.layers.MaxPool2D(3)(features)
-features_block_5 = tf.keras.layers.Conv2D(256, 3, activation='relu')(features)
-features = tf.keras.layers.Conv2D(256, 3, activation='relu', padding='same')(features_block_5)
-features = tf.keras.layers.Conv2D(256, 3, activation='relu', padding='same')(features)
-features_block_6 = tf.keras.layers.add([features, features_block_5])
-features = tf.keras.layers.Conv2D(256, 3, activation='relu', padding='same')(features_block_6)
-features = tf.keras.layers.Conv2D(256, 3, activation='relu', padding='same')(features)
-features = tf.keras.layers.add([features, features_block_6])
-
-features = tf.keras.layers.Conv2D(256, 3, activation='relu')(features)
-features = tf.keras.layers.GlobalAveragePooling2D()(features)
-features = tf.keras.layers.Dense(units=256, activation='relu')(features)
-features = tf.keras.layers.Dropout(0.5)(features)
-logits_output = tf.keras.layers.Dense(units=num_classes, activation='softmax')(features)
-
-# now the model
-model = tf.keras.Model(inputs=features_input, outputs=logits_output)
-model.summary()
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
               loss='sparse_categorical_crossentropy',
               metrics=['SparseCategoricalAccuracy'])
@@ -82,7 +79,7 @@ def data_generator():
         label = tf.keras.utils.HDF5Matrix(filename, dataset)[0][0]
         yield (tf.expand_dims(frame, axis=2), label)
 
-dataset = tf.data.Dataset.from_generator(generator = data_generator, 
+dataset = tf.data.Dataset.from_generator(generator = data_generator,
                                          output_types = (tf.float32, tf.int32),
                                          output_shapes = (frame_size+[1], ()))
 

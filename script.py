@@ -29,28 +29,28 @@ num_classes = tf.keras.utils.HDF5Matrix(filename, '/num_classes').data.value[0][
 
 # place holder for input image frames
 if idx_model == 0:
-    model = tf.keras.applications.xception.Xception(
+    model = tf.keras.applications.Xception(
         include_top=True,
         weights=None,
         input_shape=frame_size+[1],
         classes=num_classes)
     print('********** Xception **********')
 elif idx_model == 1:
-    model = tf.keras.applications.resnet.ResNet50V2(
+    model = tf.keras.applications.ResNet50V2(
         include_top=True,
         weights=None,
         input_shape=frame_size+[1],
         classes=num_classes)
     print('********** ResNet50V2 **********')
 elif idx_model == 2:
-    model = tf.keras.applications.densenet.DenseNet201(
+    model = tf.keras.applications.DenseNet201(
         include_top=True,
         weights=None,
         input_shape=frame_size+[1],
         classes=num_classes)
     print('********** DenseNet201 **********')
 elif idx_model == 3:
-    model = tf.keras.applications.inception_v3.InceptionV3(
+    model = tf.keras.applications.InceptionV3(
         include_top=True,
         weights=None,
         input_shape=frame_size+[1],
@@ -87,4 +87,4 @@ dataset = tf.data.Dataset.from_generator(generator = data_generator,
 # training
 dataset_batch = dataset.shuffle(buffer_size=1024).batch(num_subjects)
 frame_train, label_train = next(iter(dataset_batch))
-model.fit(frame_train, label_train, epochs=int(1e3), validation_split=0.2)
+model.fit(frame_train, label_train, epochs=int(25000), validation_split=0.2)

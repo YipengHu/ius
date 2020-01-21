@@ -75,6 +75,19 @@ def data_generator():
         idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
         dataset = '/subject%06d_frame%08d' % (iSbj, idx_frame)
         frame = tf.transpose(tf.keras.utils.HDF5Matrix(filename, dataset)) / 255
+        # data augmentation
+        '''
+        frame = tf.keras.preprocessing.image.apply_affine_transform(
+            frame, 
+            theta=tf.random.uniform([], -15, 15), 
+            tx=tf.random.uniform([], -int(frame_size[0]/10), int(frame_size[0]/10)), 
+            ty=tf.random.uniform([], -int(frame_size[1]/10), int(frame_size[1]/10)), 
+            zx=tf.random.uniform([], 0.9, 1.1), 
+            zy=tf.random.uniform([], 0.9, 1.1), 
+            row_axis=0, col_axis=1, channel_axis=2,
+            fill_mode='constant', cval=0.0, order=1
+            )
+        '''
         dataset = '/subject%06d_label%08d' % (iSbj, idx_frame)
         label = tf.keras.utils.HDF5Matrix(filename, dataset)[0][0]
         yield (tf.expand_dims(frame, axis=2), label)

@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 flag_wsl = True
 nSbj = 6
-nFrm = 8
+nFrm = 16
 
 if os.name == 'nt':
     home_dir = os.path.expanduser('~')

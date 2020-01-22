@@ -2,7 +2,7 @@
 import tensorflow as tf
 import random
 import os
-# import numpy as np
+import numpy as np
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
@@ -67,30 +67,30 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
 # now get the data using a generator
 num_subjects = tf.keras.utils.HDF5Matrix(filename, '/num_subjects').data.value[0][0]
 subject_indices = range(num_subjects)
-num_frames_per_subject = 1
+total_num_frames = 0
+for iSbj in subject_indices:
+    num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
+    total_num_frames += num_frames
+        
+# num_frames_per_subject = 1
 def data_generator():
     for iSbj in subject_indices:
-        dataset = '/subject%06d_num_frames' % iSbj
-        num_frames = tf.keras.utils.HDF5Matrix(filename, dataset)[0][0]
-        idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
-        dataset = '/subject%06d_frame%08d' % (iSbj, idx_frame)
-        frame = tf.transpose(tf.keras.utils.HDF5Matrix(filename, dataset)) / 255
-        # data augmentation
-        '''
-        frame = tf.keras.preprocessing.image.apply_affine_transform(
-            frame, 
-            theta=tf.random.uniform([], -15, 15), 
-            tx=tf.random.uniform([], -int(frame_size[0]/10), int(frame_size[0]/10)), 
-            ty=tf.random.uniform([], -int(frame_size[1]/10), int(frame_size[1]/10)), 
-            zx=tf.random.uniform([], 0.9, 1.1), 
-            zy=tf.random.uniform([], 0.9, 1.1), 
-            row_axis=0, col_axis=1, channel_axis=2,
-            fill_mode='constant', cval=0.0, order=1
-            )
-        '''
-        dataset = '/subject%06d_label%08d' % (iSbj, idx_frame)
-        label = tf.keras.utils.HDF5Matrix(filename, dataset)[0][0]
-        yield (tf.expand_dims(frame, axis=2), label)
+        num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]        
+        for idx_frame in range(num_frames):
+        # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
+            frame = tf.transpose(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame))) / 255
+            # data augmentation
+            frame = tf.keras.preprocessing.image.apply_affine_transform(
+                np.expand_dims(frame, axis=2), 
+                theta=tf.random.uniform([], -15, 15), 
+                tx=tf.random.uniform([], -int(frame_size[0]/10), int(frame_size[0]/10)), 
+                ty=tf.random.uniform([], -int(frame_size[1]/10), int(frame_size[1]/10)), 
+                zx=tf.random.uniform([], 0.9, 1.1), 
+                zy=tf.random.uniform([], 0.9, 1.1), 
+                row_axis=0, col_axis=1, fill_mode='constant', channel_axis=2, cval=0.0, order=1
+                )
+            label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
+            yield (frame, label)
 
 dataset = tf.data.Dataset.from_generator(generator = data_generator,
                                          output_types = (tf.float32, tf.int32),
@@ -98,6 +98,6 @@ dataset = tf.data.Dataset.from_generator(generator = data_generator,
 
 
 # training
-dataset_batch = dataset.shuffle(buffer_size=1024).batch(num_subjects)
+dataset_batch = dataset.shuffle(buffer_size=1024).batch(total_num_frames)
 frame_train, label_train = next(iter(dataset_batch))
 model.fit(frame_train, label_train, epochs=int(25000), validation_split=0.2)

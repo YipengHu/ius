@@ -2,12 +2,14 @@
 import tensorflow as tf
 import random
 import os
-import numpy as np
+# import numpy as np
+
+import utils2d as utils
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
-idx_model = 0
+idx_model = 1
 
 import sys
 parsed_input = sys.argv  # get idx at runtime
@@ -23,8 +25,8 @@ elif os.name == 'posix':
         home_dir = os.environ['HOME']
 filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_sweep_class_subjects.h5')
 
-frame_size = tf.keras.utils.HDF5Matrix(filename, '/frame_size').data.value
-frame_size = [frame_size[0][0],frame_size[1][0]]
+frame_size = tf.keras.utils.HDF5Matrix(filename, '/frame_size').data[()]
+frame_size = [int(frame_size[0][0]),int(frame_size[1][0])]
 num_classes = tf.keras.utils.HDF5Matrix(filename, '/num_classes').data.value[0][0]
 
 # place holder for input image frames
@@ -71,15 +73,23 @@ total_num_frames = 0
 for iSbj in subject_indices:
     num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
     total_num_frames += num_frames
-        
+
+input_ = tf.expand_dims(tf.stack([tf.transpose(tf.keras.utils.HDF5Matrix(
+                    filename, '/subject%06d_frame%08d' % (0, i))) / 255 for i in [100,50,5,6,7]],0),axis=3)
+grid = utils.get_reference_grid(frame_size)
+transform = utils.random_transform_generator(5, corner_scale=.1)
+
 # num_frames_per_subject = 1
 def data_generator():
     for iSbj in subject_indices:
         num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]        
-        for idx_frame in range(num_frames):
-        # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
+        for idx_frame in range(num_frames):  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
             frame = tf.transpose(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame))) / 255
             # data augmentation
+
+            
+            
+            ''' # very slow
             frame = tf.keras.preprocessing.image.apply_affine_transform(
                 np.expand_dims(frame, axis=2), 
                 theta=tf.random.uniform([], -15, 15), 
@@ -89,6 +99,7 @@ def data_generator():
                 zy=tf.random.uniform([], 0.9, 1.1), 
                 row_axis=0, col_axis=1, fill_mode='constant', channel_axis=2, cval=0.0, order=1
                 )
+            '''
             label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
             yield (frame, label)
 

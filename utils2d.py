@@ -3,50 +3,52 @@ import tensorflow as tf
 
 
 def get_reference_grid(grid_size):
-    # grid_size: [height, width]
+    # grid_size: [batch_size, height, width]
     grid = tf.cast(tf.stack(tf.meshgrid(
-                tf.range(grid_size[0]),
-                tf.range(grid_size[1]),
-                indexing='ij'), axis=2), dtype=tf.float32)
-    return grid
+                        tf.range(grid_size[1]),
+                        tf.range(grid_size[2]),
+                        indexing='ij'), axis=2), dtype=tf.float32)
+    return tf.tile(tf.expand_dims(grid, axis=0), [grid_size[0],1,1,1])
 
 
 def warp_grid(grid, transform):
-    # grid: [batch_size, height, width, 2]
-    # transform: [batch_size, 3, 3]
+    # grid: [batch, height, width, 2]
+    # transform: [batch, 3, 3]
     batch_size, height, width = grid.shape[0:3]
-    grid = tf.concat([tf.reshape(grid,[batch_size,-1,2]), tf.ones([batch_size,height*width,1]))], axis=3)
+    grid = tf.concat([tf.reshape(grid,[batch_size,height*width,2]), tf.ones([batch_size,height*width,1])], axis=2)
     grid_warped = tf.matmul(grid, transform)
-    return tf.reshape(grid_warped[...,[0,1]], [batch_size,height,width,2])
+    return tf.reshape(grid_warped[...,:2], [batch_size,height,width,2])
 
 
-def resample_linear(input, sample_coords):
-# def interpolate_bilinear(grid, query_points, indexing="ij", name=None):
-    """Similar to Matlab's interp2 function.
-    Finds values for query points on a grid using bilinear interpolation.
-    Args:
-      grid: a 4-D float `Tensor` of shape `[batch, height, width, channels]`.
-      query_points: a 3-D float `Tensor` of N points with shape
-        `[batch, N, 2]`.
-      indexing: whether the query points are specified as row and column (ij),
-        or Cartesian coordinates (xy).
-      name: a name for the operation (optional).
-    Returns:
-      values: a 3-D `Tensor` with shape `[batch, N, channels]`
-    """
-    grid = tf.convert_to_tensor(grid)
-    query_points = tf.convert_to_tensor(query_points)
-    batch_size, height, width, channels = (grid_shape[0], grid_shape[1],
-                                            grid_shape[2], grid_shape[3])
-    num_queries = query_shape[1]
-    query_type = query_points.dtype
-    grid_type = grid.dtype
+def resample_linear(grid_data, sample_grids):
+    # grid_data: [batch, height, width]
+    # sample_grids: [batch, height, width, 2]
+    
+    batch_size, height, width = (grid_data.shape[:])
+    sample_coords = tf.reshape(sample_grids, [batch_size,-1,2])
+
+    # pad to replicate the boundaries
+    i_ceil = tf.clip_by_value(tf.cast(tf.math.ceil(sample_coords[...,0]), dtype=tf.int32),0,height-1)
+    j_ceil = tf.clip_by_value(tf.cast(tf.math.ceil(sample_coords[...,1]), dtype=tf.int32),0,width-1)
+    i_floor = tf.maximum(i_ceil-1, 0)
+    j_floor = tf.maximum(j_ceil-1, 0)
+
+    q11 = tf.gather_nd(grid_data,tf.stack([i_ceil,j_ceil],axis=2), batch_dims=1)
+    q12 = tf.gather_nd(grid_data,tf.stack([i_floor,j_ceil],axis=2), batch_dims=1)
+    q22 = tf.gather_nd(grid_data,tf.stack([i_floor,j_floor],axis=2), batch_dims=1)
+    q21 = tf.gather_nd(grid_data,tf.stack([i_ceil,j_floor],axis=2), batch_dims=1)
+    
+    weight_i = sample_coords[...,0] - tf.cast(i_floor,dtype=tf.float32)
+    weight_j = sample_coords[...,1] - tf.cast(j_floor,dtype=tf.float32)
+
+    interpolated = q11*(1-weight_i)*(1-weight_j) 
+
+    num_queries = height * width
 
     alphas = []
     floors = []
     ceils = []
-    index_order = [0, 1] if indexing == "ij" else [1, 0]
-    unstacked_query_points = tf.unstack(query_points, axis=2, num=2)
+    index_order = [0, 1]
 
     for i, dim in enumerate(index_order):
         queries = unstacked_query_points[dim]
@@ -82,19 +84,17 @@ def resample_linear(input, sample_coords):
             grid, [batch_size * height * width, channels])
         batch_offsets = tf.reshape(
             tf.range(batch_size) * height * width, [batch_size, 1])
-    # pylint: enable=bad-continuation
 
     # This wraps tf.gather. We reshape the image data such that the
     # batch, y, and x coordinates are pulled into the first dimension.
     # Then we gather. Finally, we reshape the output back. It's possible this
     # code would be made simpler by using tf.gather_nd.
-    def gather(y_coords, x_coords, name):
-        with tf.name_scope("gather-" + name):
-            linear_coordinates = (
-                batch_offsets + y_coords * width + x_coords)
-            gathered_values = tf.gather(flattened_grid, linear_coordinates)
-            return tf.reshape(gathered_values,
-                                [batch_size, num_queries, channels])
+    def gather(y_coords, x_coords):
+        linear_coordinates = (
+            batch_offsets + y_coords * width + x_coords)
+        gathered_values = tf.gather(flattened_grid, linear_coordinates)
+        return tf.reshape(gathered_values,
+                            [batch_size, num_queries, channels])
 
     # grab the pixel values in the 4 corners around each query point
     top_left = gather(floors[0], floors[1], "top_left")

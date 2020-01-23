@@ -53,3 +53,12 @@ def random_transform_generator(batch_size, corner_scale=.1):
     ori_corners = tf.concat([ori_corners,tf.ones([batch_size,4,1])], axis=2)
     new_corners = tf.concat([new_corners,tf.ones([batch_size,4,1])], axis=2)
     return tf.stack([tf.linalg.lstsq(ori_corners[n],new_corners[n]) for n in range(batch_size)], axis=0)
+
+
+@tf.function
+def random_image_transform(images):
+    # images: [batch_size, height, width]
+    reference_grid = get_reference_grid(images.shape[0:3])
+    random_transform = random_transform_generator(images.shape[0], corner_scale=0.1)
+    sample_grids = warp_grid(reference_grid, random_transform)
+    return resample_linear(images, sample_grids)

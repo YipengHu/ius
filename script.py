@@ -36,30 +36,14 @@ for iSbj in subject_indices:
     num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
     total_num_frames += num_frames
 
-'''
-images = tf.stack([tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(
-    filename, '/subject%06d_frame%08d' % (0, i)), dtype=tf.float32)) / 255.0 for i in [100,50,75,200,7]], axis=0)
-sample_grids = utils.warp_grid(utils.get_reference_grid([images.shape[0]]+frame_size), 
-                                utils.random_transform_generator(images.shape[0], corner_scale=0.1))
-warped_images = utils.resample_linear(images, sample_grids)
-from matplotlib import pyplot as plt
-for j in range(images.shape[0]):
-    # plt.figure()
-    # plt.imshow(images[j,...],cmap='gray')
-    plt.figure()
-    plt.imshow(warped_images[j,...],cmap='gray')
-plt.show()
-'''
 
 # num_frames_per_subject = 1
 def data_generator():
     for iSbj in subject_indices:
         num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]        
         for idx_frame in range(num_frames):  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
-            frame = tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0
-            # data augmentation
-            warped_grid = utils.warp_grid(utils.get_reference_grid([1]+frame_size), utils.random_transform_generator(1))
-            frame = tf.transpose(utils.resample_linear(tf.expand_dims(frame,axis=0), warped_grid),[1,2,0])  # plt.imshow(frame,cmap='gray'), plt.show()
+            frame = tf.expand_dims(tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0, axis=0)
+            frame = tf.transpose(utils.random_image_transform(frame),[1,2,0])  # data augmentation - plt.imshow(frame[...,0],cmap='gray'), plt.show()
             label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
             yield (frame, label)
 
@@ -99,12 +83,12 @@ elif idx_model == 3:
 
 # model.summary()
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
               loss='sparse_categorical_crossentropy',
               metrics=['SparseCategoricalAccuracy'])
 
 
 # training
-dataset_batch = dataset.shuffle(buffer_size=1024).batch(total_num_frames)
+dataset_batch = dataset.shuffle(buffer_size=total_num_frames).batch(32)
 frame_train, label_train = next(iter(dataset_batch))
 model.fit(frame_train, label_train, epochs=int(25000), validation_split=0.2)

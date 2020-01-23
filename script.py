@@ -2,7 +2,6 @@
 import tensorflow as tf
 import random
 import os
-# import numpy as np
 
 import utils2d as utils
 
@@ -28,6 +27,45 @@ filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_swe
 frame_size = tf.keras.utils.HDF5Matrix(filename, '/frame_size').data[()]
 frame_size = [int(frame_size[0][0]),int(frame_size[1][0])]
 num_classes = tf.keras.utils.HDF5Matrix(filename, '/num_classes').data.value[0][0]
+
+# now get the data using a generator
+num_subjects = tf.keras.utils.HDF5Matrix(filename, '/num_subjects').data.value[0][0]
+subject_indices = range(num_subjects)
+total_num_frames = 0
+for iSbj in subject_indices:
+    num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
+    total_num_frames += num_frames
+
+'''
+images = tf.stack([tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(
+    filename, '/subject%06d_frame%08d' % (0, i)), dtype=tf.float32)) / 255.0 for i in [100,50,75,200,7]], axis=0)
+sample_grids = utils.warp_grid(utils.get_reference_grid([images.shape[0]]+frame_size), 
+                                utils.random_transform_generator(images.shape[0], corner_scale=0.1))
+warped_images = utils.resample_linear(images, sample_grids)
+from matplotlib import pyplot as plt
+for j in range(images.shape[0]):
+    # plt.figure()
+    # plt.imshow(images[j,...],cmap='gray')
+    plt.figure()
+    plt.imshow(warped_images[j,...],cmap='gray')
+plt.show()
+'''
+
+# num_frames_per_subject = 1
+def data_generator():
+    for iSbj in subject_indices:
+        num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]        
+        for idx_frame in range(num_frames):  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
+            frame = tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0
+            # data augmentation
+            warped_grid = utils.warp_grid(utils.get_reference_grid([1]+frame_size), utils.random_transform_generator(1))
+            frame = tf.transpose(utils.resample_linear(tf.expand_dims(frame,axis=0), warped_grid),[1,2,0])  # plt.imshow(frame,cmap='gray'), plt.show()
+            label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
+            yield (frame, label)
+
+dataset = tf.data.Dataset.from_generator(generator = data_generator,
+                                         output_types = (tf.float32, tf.int32),
+                                         output_shapes = (frame_size+[1], ()))
 
 # place holder for input image frames
 if idx_model == 0:
@@ -64,48 +102,6 @@ elif idx_model == 3:
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
               loss='sparse_categorical_crossentropy',
               metrics=['SparseCategoricalAccuracy'])
-
-
-# now get the data using a generator
-num_subjects = tf.keras.utils.HDF5Matrix(filename, '/num_subjects').data.value[0][0]
-subject_indices = range(num_subjects)
-total_num_frames = 0
-for iSbj in subject_indices:
-    num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
-    total_num_frames += num_frames
-
-input_ = tf.expand_dims(tf.stack([tf.transpose(tf.keras.utils.HDF5Matrix(
-                    filename, '/subject%06d_frame%08d' % (0, i))) / 255 for i in [100,50,5,6,7]],0),axis=3)
-grid = utils.get_reference_grid(frame_size)
-transform = utils.random_transform_generator(5, corner_scale=.1)
-
-# num_frames_per_subject = 1
-def data_generator():
-    for iSbj in subject_indices:
-        num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]        
-        for idx_frame in range(num_frames):  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
-            frame = tf.transpose(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame))) / 255
-            # data augmentation
-
-            
-            
-            ''' # very slow
-            frame = tf.keras.preprocessing.image.apply_affine_transform(
-                np.expand_dims(frame, axis=2), 
-                theta=tf.random.uniform([], -15, 15), 
-                tx=tf.random.uniform([], -int(frame_size[0]/10), int(frame_size[0]/10)), 
-                ty=tf.random.uniform([], -int(frame_size[1]/10), int(frame_size[1]/10)), 
-                zx=tf.random.uniform([], 0.9, 1.1), 
-                zy=tf.random.uniform([], 0.9, 1.1), 
-                row_axis=0, col_axis=1, fill_mode='constant', channel_axis=2, cval=0.0, order=1
-                )
-            '''
-            label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
-            yield (frame, label)
-
-dataset = tf.data.Dataset.from_generator(generator = data_generator,
-                                         output_types = (tf.float32, tf.int32),
-                                         output_shapes = (frame_size+[1], ()))
 
 
 # training

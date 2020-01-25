@@ -39,9 +39,11 @@ for iSbj in subject_indices:
 
 # num_frames_per_subject = 1
 def data_generator():
+    tf.random.shuffle(subject_indices)
     for iSbj in subject_indices:
-        num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]        
-        for idx_frame in range(num_frames):  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
+        num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
+        frame_indices = tf.random.shuffle(range(num_frames))
+        for idx_frame in frame_indices:  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
             frame = tf.expand_dims(tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0, axis=0)
             frame = tf.transpose(utils.random_image_transform(frame),[1,2,0])  # data augmentation - plt.imshow(frame[...,0],cmap='gray'), plt.show()
             label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
@@ -89,6 +91,6 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
 
 
 # training
-dataset_batch = dataset.shuffle(buffer_size=total_num_frames).batch(32)
+dataset_batch = dataset.shuffle(buffer_size=1024).batch(total_num_frames)
 frame_train, label_train = next(iter(dataset_batch))
 model.fit(frame_train, label_train, epochs=int(25000), validation_split=0.2)

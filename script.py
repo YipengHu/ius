@@ -8,6 +8,10 @@ import utils2d as utils
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
+# parameters
+validatoin_split = 0.2
+
+
 idx_model = 1
 
 import sys
@@ -30,17 +34,23 @@ num_classes = tf.keras.utils.HDF5Matrix(filename, '/num_classes').data.value[0][
 
 # now get the data using a generator
 num_subjects = tf.keras.utils.HDF5Matrix(filename, '/num_subjects').data.value[0][0]
-subject_indices = range(num_subjects)
+subject_indices = [idx for idx in range(num_subjects)]
+random.shuffle(subject_indices) # shuffle once
+# split
+num_validation = int(num_subjects*validatoin_split)
+subject_train, subject_validation = subject_indices[num_validation:], subject_indices[:num_validation]
+'''
 total_num_frames = 0
 for iSbj in subject_indices:
     num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
     total_num_frames += num_frames
+'''
 
 
 # num_frames_per_subject = 1
-def data_generator():
-    tf.random.shuffle(subject_indices)
-    for iSbj in subject_indices:
+def data_generator(sub_indices):
+    tf.random.shuffle(sub_indices)
+    for iSbj in sub_indices:
         num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
         frame_indices = tf.random.shuffle(range(num_frames))
         for idx_frame in frame_indices:  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
@@ -49,11 +59,8 @@ def data_generator():
             label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
             yield (frame, label)
 
-dataset = tf.data.Dataset.from_generator(generator = data_generator,
-                                         output_types = (tf.float32, tf.int32),
-                                         output_shapes = (frame_size+[1], ()))
 
-# place holder for input image frames
+# models
 if idx_model == 0:
     model = tf.keras.applications.Xception(
         include_top=True,
@@ -91,6 +98,14 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
 
 
 # training
-dataset_batch = dataset.shuffle(buffer_size=1024).batch(total_num_frames)
-frame_train, label_train = next(iter(dataset_batch))
-model.fit(frame_train, label_train, epochs=int(25000), validation_split=0.2)
+dataset_train = tf.data.Dataset.from_generator(generator=data_generator, args=[subject_train], 
+                                               output_types=(tf.float32, tf.int32),
+                                               output_shapes=(frame_size+[1], ()))
+
+dataset_val = tf.data.Dataset.from_generator(generator=data_generator, args=[subject_validation], 
+                                             output_types=(tf.float32, tf.int32),
+                                             output_shapes=(frame_size+[1], ()))
+
+train_batch = dataset_train.shuffle(buffer_size=1024).batch(128)
+
+model.fit(train_batch, validation_data=dataset_val, epochs=int(1000))

@@ -108,4 +108,4 @@ dataset_val = tf.data.Dataset.from_generator(generator=data_generator, args=[sub
 
 # train_batch = dataset_train.shuffle(buffer_size=1024).batch(128)
 
-model.fit(dataset_train.batch(128), validation_data=dataset_val, epochs=int(1000))
+model.fit(dataset_train.batch(128), validation_data=dataset_val.batch(128), epochs=int(1000))

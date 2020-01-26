@@ -2,6 +2,7 @@
 import tensorflow as tf
 import random
 import os
+import h5py
 
 import utils2d as utils
 
@@ -27,13 +28,14 @@ elif os.name == 'posix':
     else:
         home_dir = os.environ['HOME']
 filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_sweep_class_subjects.h5')
+data_file = h5py.File(filename,"r")
 
-frame_size = tf.keras.utils.HDF5Matrix(filename, '/frame_size').data[()]
+frame_size = data_file.get('/frame_size')[()]
 frame_size = [int(frame_size[0][0]),int(frame_size[1][0])]
-num_classes = tf.keras.utils.HDF5Matrix(filename, '/num_classes').data.value[0][0]
+num_classes = data_file.get('/num_classes')[0][0]
 
 # now get the data using a generator
-num_subjects = tf.keras.utils.HDF5Matrix(filename, '/num_subjects').data.value[0][0]
+num_subjects = data_file.get('/num_subjects')[0][0]
 subject_indices = [idx for idx in range(num_subjects)]
 random.shuffle(subject_indices) # shuffle once
 # split
@@ -42,7 +44,7 @@ subject_train, subject_validation = subject_indices[num_validation:], subject_in
 '''
 total_num_frames = 0
 for iSbj in subject_indices:
-    num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
+    num_frames = data_file.get('/subject%06d_num_frames' % iSbj)[0][0]
     total_num_frames += num_frames
 '''
 
@@ -51,12 +53,12 @@ for iSbj in subject_indices:
 def data_generator(sub_indices):
     tf.random.shuffle(sub_indices)
     for iSbj in sub_indices:
-        num_frames = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_num_frames' % iSbj)[0][0]
+        num_frames = data_file.get('/subject%06d_num_frames' % iSbj)[0][0]
         frame_indices = tf.random.shuffle(range(num_frames))
         for idx_frame in frame_indices:  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
-            frame = tf.expand_dims(tf.transpose(tf.cast(tf.keras.utils.HDF5Matrix(filename, '/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0, axis=0)
+            frame = tf.expand_dims(tf.transpose(tf.cast(data_file.get('/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0, axis=0)
             frame = tf.transpose(utils.random_image_transform(frame),[1,2,0])  # data augmentation - plt.imshow(frame[...,0],cmap='gray'), plt.show()
-            label = tf.keras.utils.HDF5Matrix(filename, '/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
+            label = data_file.get('/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
             yield (frame, label)
 
 

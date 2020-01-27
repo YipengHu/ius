@@ -99,6 +99,8 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
               metrics=['SparseCategoricalAccuracy'])
 
 
+model.save('model.h5')
+
 # training
 dataset_train = tf.data.Dataset.from_generator(generator=data_generator, args=[subject_train], 
                                                output_types=(tf.float32, tf.int32),
@@ -109,5 +111,14 @@ dataset_val = tf.data.Dataset.from_generator(generator=data_generator, args=[sub
                                              output_shapes=(frame_size+[1], ()))
 
 # train_batch = dataset_train.shuffle(buffer_size=1024).batch(128)
+checkpoint_path = "./cp.ckpt"
+callback_checkpoint = tf.keras.callbacks.ModelCheckpoint(
+    filepath=checkpoint_path,
+    save_weights_only=True,
+    verbose=1,
+    period=5)
 
-model.fit(dataset_train.batch(128), validation_data=dataset_val.batch(128), epochs=int(1000))
+model.fit(dataset_train.batch(128), 
+          validation_data=dataset_val.batch(128), 
+          epochs=int(100),
+          callbacks=[callback_checkpoint])

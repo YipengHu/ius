@@ -31,13 +31,13 @@ filename = os.path.join(home_dir, 'Scratch/data/protocol/normalised/protocol_swe
 data_file = h5py.File(filename,"r")
 
 frame_size = data_file.get('/frame_size')[()]
-frame_size = [int(frame_size[0][0]),int(frame_size[1][0])]
+image_shape = [int(frame_size[0][0]),int(frame_size[1][0]),1]
 num_classes = data_file.get('/num_classes')[0][0]
 
 # now get the data using a generator
 num_subjects = data_file.get('/num_subjects')[0][0]
-subject_indices = [idx for idx in range(num_subjects)]
-random.shuffle(subject_indices) # shuffle once
+subject_indices = tf.convert_to_tensor([idx for idx in range(num_subjects)])
+tf.random.shuffle(subject_indices) # shuffle once
 # split
 num_validation = int(num_subjects*validatoin_split)
 subject_train, subject_validation = subject_indices[num_validation:], subject_indices[:num_validation]
@@ -50,15 +50,16 @@ for iSbj in subject_indices:
 
 
 # num_frames_per_subject = 1
+@tf.function
 def data_generator(sub_indices):
     tf.random.shuffle(sub_indices)
     for iSbj in sub_indices:
-        num_frames = data_file.get('/subject%06d_num_frames' % iSbj)[0][0]
-        frame_indices = tf.random.shuffle(range(num_frames))
+        num_frames = tf.convert_to_tensor(data_file.get('/subject%06d_num_frames' % iSbj)[0][0])
+        frame_indices = tf.random.shuffle(tf.range(num_frames))
         for idx_frame in frame_indices:  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
             frame = tf.expand_dims(tf.transpose(tf.cast(data_file.get('/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0, axis=0)
             frame = tf.transpose(utils.random_image_transform(frame),[1,2,0])  # data augmentation - plt.imshow(frame[...,0],cmap='gray'), plt.show()
-            label = data_file.get('/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
+            label = tf.convert_to_tensor(data_file.get('/subject%06d_label%08d' % (iSbj, idx_frame))[0][0])
             yield (frame, label)
 
 
@@ -67,28 +68,28 @@ if idx_model == 0:
     model = tf.keras.applications.Xception(
         include_top=True,
         weights=None,
-        input_shape=frame_size+[1],
+        input_shape=image_shape,
         classes=num_classes)
     print('********** Xception **********')
 elif idx_model == 1:
     model = tf.keras.applications.ResNet50V2(
         include_top=True,
         weights=None,
-        input_shape=frame_size+[1],
+        input_shape=image_shape,
         classes=num_classes)
     print('********** ResNet50V2 **********')
 elif idx_model == 2:
     model = tf.keras.applications.DenseNet201(
         include_top=True,
         weights=None,
-        input_shape=frame_size+[1],
+        input_shape=image_shape,
         classes=num_classes)
     print('********** DenseNet201 **********')
 elif idx_model == 3:
     model = tf.keras.applications.InceptionV3(
         include_top=True,
         weights=None,
-        input_shape=frame_size+[1],
+        input_shape=image_shape,
         classes=num_classes)
     print('********** InceptionV3 **********')
 
@@ -104,21 +105,22 @@ model.save('model.h5')
 # training
 dataset_train = tf.data.Dataset.from_generator(generator=data_generator, args=[subject_train], 
                                                output_types=(tf.float32, tf.int32),
-                                               output_shapes=(frame_size+[1], ()))
+                                               output_shapes=(image_shape, ()))
 
 dataset_val = tf.data.Dataset.from_generator(generator=data_generator, args=[subject_validation], 
                                              output_types=(tf.float32, tf.int32),
-                                             output_shapes=(frame_size+[1], ()))
+                                             output_shapes=(image_shape, ()))
 
-# train_batch = dataset_train.shuffle(buffer_size=1024).batch(128)
+train_batch = dataset_train.shuffle(buffer_size=1024).batch(256)
+val_batch = dataset_val.shuffle(buffer_size=1024).batch(128)
+
 checkpoint_path = "./cp.ckpt"
 callback_checkpoint = tf.keras.callbacks.ModelCheckpoint(
     filepath=checkpoint_path,
     save_weights_only=True,
     verbose=1,
-    period=5)
+    save_freq='epoch')
 
-model.fit(dataset_train.batch(128), 
-          validation_data=dataset_val.batch(128), 
-          epochs=int(100),
+model.fit(train_batch, validation_data=val_batch, 
+          epochs=tf.constant(100),
           callbacks=[callback_checkpoint])

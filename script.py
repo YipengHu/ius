@@ -50,16 +50,16 @@ for iSbj in subject_indices:
 
 
 # num_frames_per_subject = 1
-@tf.function
+# @tf.function
 def data_generator(sub_indices):
     tf.random.shuffle(sub_indices)
     for iSbj in sub_indices:
-        num_frames = tf.convert_to_tensor(data_file.get('/subject%06d_num_frames' % iSbj)[0][0])
-        frame_indices = tf.random.shuffle(tf.range(num_frames))
+        num_frames = data_file.get('/subject%06d_num_frames' % iSbj)[0][0]
+        frame_indices = tf.random.shuffle(range(num_frames))
         for idx_frame in frame_indices:  # idx_frame = random.sample(range(num_frames),num_frames_per_subject)[0]
             frame = tf.expand_dims(tf.transpose(tf.cast(data_file.get('/subject%06d_frame%08d' % (iSbj, idx_frame)), dtype=tf.float32)) / 255.0, axis=0)
             frame = tf.transpose(utils.random_image_transform(frame),[1,2,0])  # data augmentation - plt.imshow(frame[...,0],cmap='gray'), plt.show()
-            label = tf.convert_to_tensor(data_file.get('/subject%06d_label%08d' % (iSbj, idx_frame))[0][0])
+            label = data_file.get('/subject%06d_label%08d' % (iSbj, idx_frame))[0][0]
             yield (frame, label)
 
 
@@ -122,5 +122,5 @@ callback_checkpoint = tf.keras.callbacks.ModelCheckpoint(
     save_freq='epoch')
 
 model.fit(train_batch, validation_data=val_batch, 
-          epochs=tf.constant(100),
+          epochs=int(100),
           callbacks=[callback_checkpoint])
